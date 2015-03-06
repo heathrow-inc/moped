@@ -29,13 +29,17 @@ module Moped
       begin
         block.call
       rescue Errors::ConnectionFailure, Errors::PotentialReconfiguration => e
+        Loggable.warn("  MOPED:", "connection failure investigation: failed with class '#{e.class}' and message '#{e.message}'.", "n/a")
+
         raise e if e.is_a?(Errors::PotentialReconfiguration) &&
           ! (e.message.include?("not master") || e.message.include?("Not primary"))
 
         if retries > 0
           Loggable.warn("  MOPED:", "Retrying connection attempt #{retries} more time(s).", "n/a")
           sleep(cluster.retry_interval)
-          cluster.refresh
+          cluster.refresh.each do |refreshed_node|
+            Loggable.warn("  MOPED:", "Refreshed none #{refreshed_node}, primary: #{refreshed_node.primary?} refreshed_at: #{refreshed_node.refreshed_at}.", "n/a")
+          end
           with_retry(cluster, retries - 1, &block)
         else
           raise e
